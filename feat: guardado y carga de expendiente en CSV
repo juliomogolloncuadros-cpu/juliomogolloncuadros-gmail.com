@@ -1,0 +1,63 @@
+"""
+Módulo de persistencia con archivos CSV (RF6, RNF4).
+Una fila por expediente, con el encabezado definido en el informe:
+DNI,Nombres,Asunto,Area,Folios,FechaHora,Codigo
+"""
+
+import csv
+import os
+
+import validaciones
+from algoritmos import ordenar_expedientes
+
+ARCHIVO_POR_DEFECTO = "expedientes.csv"
+ENCABEZADO = ["DNI", "Nombres", "Asunto", "Area", "Folios", "FechaHora", "Codigo"]
+
+
+def guardar_csv(expedientes, nombre_archivo=ARCHIVO_POR_DEFECTO):
+    """Guarda cada registro de la lista en el archivo CSV (sobrescribe)."""
+    temporal = nombre_archivo + ".tmp"      # se escribe aparte y luego se reemplaza,
+    with open(temporal, "w", newline="", encoding="utf-8") as archivo:   # para no dañar el original
+        escritor = csv.writer(archivo)
+        escritor.writerow(ENCABEZADO)
+        for e in expedientes:
+            escritor.writerow([e["dni"], e["nombres"], e["asunto"], e["area"],
+                               e["folios"], e["fecha_hora"], e["codigo"]])
+    os.replace(temporal, nombre_archivo)
+
+
+def cargar_csv(nombre_archivo=ARCHIVO_POR_DEFECTO):
+    """
+    Lee el CSV y reconstruye la lista de expedientes, ordenada por código.
+    Si el archivo no existe retorna una lista vacía. Las filas dañadas o con
+    código repetido se omiten y se avisa por pantalla.
+    """
+    expedientes = []
+    omitidos = 0
+    codigos = []
+    if os.path.exists(nombre_archivo):
+        with open(nombre_archivo, "r", newline="", encoding="utf-8") as archivo:
+            for fila in csv.DictReader(archivo):
+                try:
+                    expediente = {
+                        "dni": fila["DNI"].strip(),
+                        "nombres": fila["Nombres"].strip(),
+                        "asunto": fila["Asunto"].strip(),
+                        "area": fila["Area"].strip(),
+                        "folios": int(fila["Folios"]),
+                        "fecha_hora": fila["FechaHora"].strip(),
+                        "codigo": fila["Codigo"].strip(),
+                    }
+                except (KeyError, ValueError, AttributeError):
+                    omitidos = omitidos + 1
+                    continue
+                if (not validaciones.validar_dni(expediente["dni"])
+                        or expediente["codigo"] == ""
+                        or expediente["codigo"] in codigos):
+                    omitidos = omitidos + 1
+                    continue
+                codigos.append(expediente["codigo"])
+                expedientes.append(expediente)
+    if omitidos > 0:
+        print(f"[!] Se omitieron {omitidos} fila(s) dañadas o repetidas del archivo.")
+    return ordenar_expedientes(expedientes)
